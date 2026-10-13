@@ -1,0 +1,30 @@
+# ===== 凭据：永不入库 =====
+credentials.md
+credentials*.md
+*.local.md
+.env
+.env.*
+secrets/
+
+# ===== Cocos Creator 工程（放入 game/ 后生效）=====
+game/library/
+game/temp/
+game/local/
+game/build/
+game/profiles/
+game/native/
+
+# ===== 系统与编辑器 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.log
+
+# ===== 智能体工作区（本地数据，不入库）=====
+.workbuddy/
+
+# ===== Node / 构建输出 =====
+node_modules/
+dist/
+*.tsbuildinfo

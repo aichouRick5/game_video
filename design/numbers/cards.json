@@ -1,0 +1,228 @@
+{
+  "version": "0.1",
+  "status": "PLACEHOLDER - 全部数值未经 playtest，本表唯一用途是跑通评分模型并暴露主导卡/死亡卡，不是最终平衡值",
+  "base": {
+    "atk": 10,
+    "spd": 1.0,
+    "assumedWaveSize": 6,
+    "upgradeStepsPerRun": 12,
+    "note": "atk/spd 为无量纲基准值；assumedWaveSize=6 表示平均每波同屏 6 个目标，连锁/多目标卡的收益以此为上限"
+  },
+  "schools": ["御剑", "雷法", "体修", "御兽", "心法"],
+  "effectTypes": {
+    "atkPct": "攻击力 +%（乘区，与其他攻击加成为加法叠加后再乘）",
+    "spdPct": "攻速 +%",
+    "chain": "连锁数 +N（同时命中的额外目标，收益上限 = assumedWaveSize）",
+    "critRate": "暴击率 +（累加后 clamp 到 100%）",
+    "critDmg": "暴击伤害 +%",
+    "flatDps": "固定附加每秒伤害（不吃乘区，前中期强、后期被乘区反超）",
+    "hpPct": "生命上限 +%",
+    "dmgReduce": "受到伤害降低 %（加法叠加，上限待定）",
+    "healOnKill": "击杀回复生命 %（转化为生存乘区）"
+  },
+  "cards": [
+    {
+      "id": "jian_spd",
+      "name": "御剑术",
+      "school": "御剑",
+      "tier": 1,
+      "maxStack": 5,
+      "effects": [{ "type": "spdPct", "value": 0.18 }],
+      "tags": ["攻速", "地基"],
+      "rationale": "御剑流地基：攻速乘区最干净，且直接提升飞剑穿梭的视觉密度，与流派幻想一致。18% 为 [PLACEHOLDER]，依据是同级 4 张卡堆满后 DPS 应达 2 倍量级，需 playtest 校准"
+    },
+    {
+      "id": "jian_atk",
+      "name": "剑意凝锋",
+      "school": "御剑",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [{ "type": "atkPct", "value": 0.22 }],
+      "tags": ["攻击", "地基"],
+      "rationale": "单体高伤路线的核心乘区。给 22% 高于雷法同档（20%）的理由：御剑缺少多目标收益，必须在单点上补回，否则该流派在 6 目标波次下全面劣于雷法"
+    },
+    {
+      "id": "jian_crit",
+      "name": "剑心通明",
+      "school": "御剑",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [{ "type": "critRate", "value": 0.1 }],
+      "tags": ["暴击", "成长向"],
+      "rationale": "暴击率是典型的‘越晚拿越强’卡：只在已有暴伤或高攻速时才值得选。10%/层 为 [PLACEHOLDER]，3 层满配 30% 暴击率，需与暴伤卡的期望收益曲线一起验证"
+    },
+    {
+      "id": "jian_multi",
+      "name": "万剑归宗",
+      "school": "御剑",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [{ "type": "chain", "value": 1 }],
+      "tags": ["多目标", "转折卡"],
+      "rationale": "给御剑补一条多目标出路，避免流派在割草段落完全打不过雷法。连锁数是离散值，收益非线性（1→2 目标等于 +100%），因此 maxStack 压到 3 且归为 tier2"
+    },
+    {
+      "id": "lei_chain",
+      "name": "引雷术",
+      "school": "雷法",
+      "tier": 1,
+      "maxStack": 3,
+      "effects": [{ "type": "chain", "value": 1 }],
+      "tags": ["多目标", "核心"],
+      "rationale": "雷法流的核心爽感来源：每层额外 +1 目标，是‘一发雷清满屏’的数值实现。maxStack=3 与 assumedWaveSize=6 对应，4 层以上收益溢出无意义"
+    },
+    {
+      "id": "lei_atk",
+      "name": "天雷正法",
+      "school": "雷法",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [{ "type": "atkPct", "value": 0.2 }],
+      "tags": ["攻击", "地基"],
+      "rationale": "雷法的基础乘区，数值刻意低于御剑同档，用连锁收益补差值。这是流派平衡的设计假设，需在模拟中验证：若雷法在 6 目标波次下仍全面压制御剑，说明连锁定价过低"
+    },
+    {
+      "id": "lei_critdmg",
+      "name": "雷符共鸣",
+      "school": "雷法",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [{ "type": "critDmg", "value": 0.35 }],
+      "tags": ["暴击", "成长向"],
+      "rationale": "与剑心通明构成互补对：暴伤单拿没用，必须配暴击率。35% 为 [PLACEHOLDER]，目的是让‘双暴配齐’成为一条明确的 Build 方向而不是随手收益"
+    },
+    {
+      "id": "lei_dot",
+      "name": "五雷轰顶",
+      "school": "雷法",
+      "tier": 2,
+      "maxStack": 4,
+      "effects": [{ "type": "flatDps", "value": 5 }],
+      "tags": ["范围", "前中期"],
+      "rationale": "固定伤害卡的作用是给前期一个可靠的强度地基（+5 相对基准 DPS 10 等于 +50%），后期被乘区反超后自然退出选择池。这条‘前中期强、后期弱’的曲线是本表要验证的关键假设"
+    },
+    {
+      "id": "ti_hp",
+      "name": "炼体诀",
+      "school": "体修",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [{ "type": "hpPct", "value": 0.25 }],
+      "tags": ["生存", "地基"],
+      "rationale": "体修的地基卡。25% 生命上限为 [PLACEHOLDER]，依据是让玩家能多吃 2-3 次精英怪攻击，而不是单纯延长血条"
+    },
+    {
+      "id": "ti_dr",
+      "name": "金刚不灭",
+      "school": "体修",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [{ "type": "dmgReduce", "value": 0.12 }],
+      "tags": ["生存", "地基"],
+      "rationale": "减伤是乘法生存区的核心，4 层满配 48% 减伤已接近设计上限，因此 maxStack 锁死 4。叠加是否设上限需要与护盾卡一起做通胀检查"
+    },
+    {
+      "id": "ti_thorn",
+      "name": "以柔克刚",
+      "school": "体修",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [{ "type": "flatDps", "value": 4 }],
+      "tags": ["反击", "防御转化输出"],
+      "rationale": "把生存属性转化为输出的唯一通道，解决坦克 Build 在 Boss 战输出不足的问题。+4 固定 DPS 是按‘满配 12 点，占终局 DPS 的一成左右’倒推的 [PLACEHOLDER]"
+    },
+    {
+      "id": "ti_bone",
+      "name": "铁骨诀",
+      "school": "体修",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [
+        { "type": "hpPct", "value": 0.15 },
+        { "type": "dmgReduce", "value": 0.06 }
+      ],
+      "tags": ["生存", "双属性"],
+      "rationale": "首个双属性卡，用来测试模型能否正确处理多 effect 叠加。相对单属性卡总值更高（生存乘区约 1.22 倍），因此 maxStack 只有 3"
+    },
+    {
+      "id": "shou_fox",
+      "name": "灵狐伴身",
+      "school": "御兽",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [{ "type": "flatDps", "value": 6 }],
+      "tags": ["召唤", "地基"],
+      "rationale": "御兽的核心是‘输出不完全依赖自己出手’，用固定 DPS 建模召唤物贡献。+6 相对基准 DPS 10 是 +60%，明显高于其他流派地基卡——这是有意为之的极端值，用来检验模型是否能识别出‘御兽前期过强’"
+    },
+    {
+      "id": "shou_tide",
+      "name": "兽潮",
+      "school": "御兽",
+      "tier": 1,
+      "maxStack": 6,
+      "effects": [{ "type": "flatDps", "value": 3 }],
+      "tags": ["召唤", "可堆叠"],
+      "rationale": "低单层收益、高叠加上限（6 层共 18 固定 DPS），用来制造‘多拿才划算’的决策张力，与灵狐伴身形成厚度差异"
+    },
+    {
+      "id": "shou_bond",
+      "name": "同心契",
+      "school": "御兽",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [{ "type": "flatDps", "value": 8 }],
+      "tags": ["召唤", "高阶"],
+      "rationale": "御兽的高阶卡，单层 8 点固定 DPS。它与五雷轰顶（5 点）的价差需要在 playtest 中确认：如果召唤物在实战里并不能全程输出，这个价差会被高估"
+    },
+    {
+      "id": "shou_guard",
+      "name": "灵兽护主",
+      "school": "御兽",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [{ "type": "dmgReduce", "value": 0.1 }],
+      "tags": ["生存", "召唤联动"],
+      "rationale": "给御兽一条生存出路，避免纯召唤 Build 在 Boss 战中被秒。10%/层与体修同档，区别在于获取难易度（tier2 更稀有）"
+    },
+    {
+      "id": "xin_heal",
+      "name": "聚气诀",
+      "school": "心法",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [{ "type": "healOnKill", "value": 0.03 }],
+      "tags": ["恢复", "割草联动"],
+      "rationale": "模型里按‘击杀回血 × 击杀速率’转化为生存乘区，系数取 2 为 [PLACEHOLDER]。真实价值取决于每波击杀数，这条假设必须在灰盒阶段用实际波次数据替换"
+    },
+    {
+      "id": "xin_shield",
+      "name": "静心咒",
+      "school": "心法",
+      "tier": 1,
+      "maxStack": 3,
+      "effects": [{ "type": "dmgReduce", "value": 0.1 }],
+      "tags": ["生存"],
+      "rationale": "心法的通用生存卡，数值与体修同档但 maxStack 更低，用来保持流派间的获取节奏差异"
+    },
+    {
+      "id": "xin_step",
+      "name": "疾风步",
+      "school": "心法",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [{ "type": "dmgReduce", "value": 0.08 }],
+      "tags": ["闪避", "生存"],
+      "rationale": "闪避在模型里等价折算为减伤（0.08/层），这是简化假设 [PLACEHOLDER]。真实闪避的价值与玩家操作水平正相关，比减伤更依赖手感，需在灰盒阶段单独验证"
+    },
+    {
+      "id": "xin_breath",
+      "name": "龟息术",
+      "school": "心法",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [{ "type": "hpPct", "value": 0.2 }],
+      "tags": ["生存", "高阶"],
+      "rationale": "高阶生存卡，20% 生命上限。与炼体诀（25%）刻意不构成绝对上位替代，避免‘同档卡只能出更强的’这种数值膨胀"
+    }
+  ]
+}
