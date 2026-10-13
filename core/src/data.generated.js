@@ -1,0 +1,450 @@
+/**
+ * 本文件由 tools/gen-data.mjs 自动生成，请勿手工修改。
+ * 源数据：design/numbers/cards.json（版本 0.2.1）
+ * 修改数值的正确姿势：改 JSON 后执行 npm run gen
+ */
+
+export const CARDS_DATA = {
+  "version": "0.2.1",
+  "status": "PLACEHOLDER - 全部数值未经 playtest；本版目标是修掉 v0.1/v0.2 模拟暴露的结构问题，通关率与方差仍在调参中",
+  "changelog": [
+    "v0.2: 连锁卡（引雷术/万剑归宗）降级为 tier2、上限压到 2 层——连锁是离散收益（1→2 目标等于翻倍），v0.1 里它挤掉了几乎所有选项",
+    "v0.2: 暴击率与暴伤合并为双属性卡——v0.1 两者分开卖，单张边际收益近乎为零，被选中率 0.0%",
+    "v0.2: 引入死亡风险模型（接触时长 × 敌人 DPS）——v0.1 没有死亡判定，生存属性被系统性低估，心法流占比仅 3.6%",
+    "v0.2: 新增『顿悟』（唯一 maxStack=1 的大乘区卡）拉高 Build 上限，制造终局强度方差",
+    "v0.2.1: 修正伤害模型——暴露时长改为『清光本波所需时间』，输出越高挨打越少；初版错把敌人当成全程满员输出 30 秒，导致通关率 0%",
+    "v0.2.1: 双暴卡数值上调（暴击率 8%→15%、暴伤 18%→50% 等）——期望收益公式是 1+暴击率×暴伤，小数值下乘积太小，暴击卡等于废卡",
+    "v0.2.1: 固定 DPS 卡整体下调（灵狐伴身 6→4 等）——固定伤害在前中期过强，是主导卡的主要来源",
+    "v0.2.1: 敌人 DPS 由 0.15 提到 0.30，把通关率拉回有张力的区间"
+  ],
+  "base": {
+    "atk": 10,
+    "spd": 1,
+    "hp": 100,
+    "assumedWaveSize": 6,
+    "waveDuration": 30,
+    "waves": 12,
+    "upgradeStepsPerRun": 12,
+    "note": "atk 10 / spd 1.0 为无量纲基准，初始 DPS = 10；hp 100 是死亡风险模型的基准血量"
+  },
+  "enemy": {
+    "perWave": 6,
+    "hpBase": 14,
+    "hpGrowth": 1.26,
+    "dpsBase": 0.25,
+    "dpsGrowth": 1.12,
+    "bossWave": 12,
+    "bossHpMul": 20,
+    "bossDpsMul": 2.2,
+    "waveClearHealPct": 0.06,
+    "upgradePauseSec": 3,
+    "note": "敌人总血量 = perWave × hpBase × hpGrowth^(w-1)，Boss 波替换为单个高血量单位。伤害按『接触时长 × 敌人 DPS』结算，输出越高挨打越少；dpsBase 需要落在『纯输出流后半程血量吃紧、但补一两张生存卡就能过』的区间"
+  },
+  "schools": [
+    "御剑",
+    "雷法",
+    "体修",
+    "御兽",
+    "心法"
+  ],
+  "effectTypes": {
+    "atkPct": "攻击力 +%（乘区，多张卡相加后统一乘算）",
+    "spdPct": "攻速 +%",
+    "chain": "连锁数 +N（同时命中的额外目标，收益上限 = assumedWaveSize）",
+    "critRate": "暴击率 +（累加后 clamp 到 100%）",
+    "critDmg": "暴击伤害 +%；期望收益 = 1 + 暴击率 × 暴伤，两者必须同时堆才有意义",
+    "flatDps": "固定附加每秒伤害（不吃乘区，前中期强、后期被乘区反超）",
+    "hpPct": "生命上限 +%",
+    "dmgReduce": "受到伤害降低 %（加法叠加）",
+    "healOnKill": "击杀回复生命 %（按每波击杀数折算为生存收益）"
+  },
+  "cards": [
+    {
+      "id": "jian_spd",
+      "name": "御剑术",
+      "school": "御剑",
+      "tier": 1,
+      "maxStack": 5,
+      "effects": [
+        {
+          "type": "spdPct",
+          "value": 0.18
+        }
+      ],
+      "tags": [
+        "攻速",
+        "地基"
+      ],
+      "rationale": "御剑流地基：攻速乘区最干净，且直接提升飞剑穿梭的视觉密度，与流派幻想一致。18%/层 为 [PLACEHOLDER]，依据是 5 层堆满后 DPS 应达 1.9 倍量级"
+    },
+    {
+      "id": "jian_atk",
+      "name": "剑意凝锋",
+      "school": "御剑",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [
+        {
+          "type": "atkPct",
+          "value": 0.22
+        }
+      ],
+      "tags": [
+        "攻击",
+        "地基"
+      ],
+      "rationale": "单体高伤路线的核心乘区。给 22% 的理由：御剑缺少多目标收益，必须在单点上补回，否则该流派在 6 目标波次下全面劣于雷法"
+    },
+    {
+      "id": "jian_crit",
+      "name": "剑心通明",
+      "school": "御剑",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [
+        {
+          "type": "critRate",
+          "value": 0.15
+        },
+        {
+          "type": "critDmg",
+          "value": 0.5
+        }
+      ],
+      "tags": [
+        "暴击",
+        "成长向"
+      ],
+      "rationale": "期望收益 = 1 + 暴击率 × 暴伤，所以这张卡的特点是『越晚拿越强』：第 1 层约 +7.5%，第 3 层边际约 +29%。v0.2.1 把数值从 8%/18% 提到 15%/50%，因为原值算出来的期望只有 1.014 倍，等于废卡"
+    },
+    {
+      "id": "jian_multi",
+      "name": "万剑归宗",
+      "school": "御剑",
+      "tier": 2,
+      "maxStack": 2,
+      "effects": [
+        {
+          "type": "chain",
+          "value": 1
+        }
+      ],
+      "tags": [
+        "多目标",
+        "转折卡"
+      ],
+      "rationale": "给御剑补一条多目标出路。叠加上限压到 2：连锁每层 +1 目标是离散收益（1→2 等于翻倍），三层以上会直接变成主导卡"
+    },
+    {
+      "id": "lei_chain",
+      "name": "引雷术",
+      "school": "雷法",
+      "tier": 2,
+      "maxStack": 2,
+      "effects": [
+        {
+          "type": "chain",
+          "value": 1
+        }
+      ],
+      "tags": [
+        "多目标",
+        "核心"
+      ],
+      "rationale": "v0.1 里这张卡被选中率 15.9%（基准 5%），是典型的主导卡。现在降为 tier2 稀有卡、上限 2 层——它应该是一局里值得期待的转折点，而不是每局必拿的地基"
+    },
+    {
+      "id": "lei_atk",
+      "name": "天雷正法",
+      "school": "雷法",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [
+        {
+          "type": "atkPct",
+          "value": 0.22
+        }
+      ],
+      "tags": [
+        "攻击",
+        "地基"
+      ],
+      "rationale": "连锁变稀后，雷法需要一张可靠的地基乘区顶上，因此与御剑同档。这是 v0.2 的平衡补偿，需在后续模拟中确认没有过度补偿"
+    },
+    {
+      "id": "lei_burst",
+      "name": "雷符共鸣",
+      "school": "雷法",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [
+        {
+          "type": "critRate",
+          "value": 0.12
+        },
+        {
+          "type": "critDmg",
+          "value": 0.6
+        }
+      ],
+      "tags": [
+        "暴击",
+        "成长向"
+      ],
+      "rationale": "与剑心通明构成流派差异：雷法版暴伤更高、暴击率略低，吃连锁多目标时暴击期望更稳定。数值同属 v0.2.1 的双暴加强"
+    },
+    {
+      "id": "lei_dot",
+      "name": "五雷轰顶",
+      "school": "雷法",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [
+        {
+          "type": "flatDps",
+          "value": 4
+        }
+      ],
+      "tags": [
+        "范围",
+        "前中期"
+      ],
+      "rationale": "固定伤害卡负责给前期一个可靠地基（+4 对初始 DPS 10 等于 +40%），后期被乘区反超后自然退出选择池。v0.2.1 由 5 下调到 4，抑制它在前期的统治力"
+    },
+    {
+      "id": "ti_hp",
+      "name": "炼体诀",
+      "school": "体修",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [
+        {
+          "type": "hpPct",
+          "value": 0.28
+        }
+      ],
+      "tags": [
+        "生存",
+        "地基"
+      ],
+      "rationale": "配合死亡风险模型，它的价值从『血条更长』变成『多扛 2-3 波』。28%/层 是 [PLACEHOLDER]，需要用真实通关数据反推"
+    },
+    {
+      "id": "ti_dr",
+      "name": "金刚不灭",
+      "school": "体修",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [
+        {
+          "type": "dmgReduce",
+          "value": 0.12
+        }
+      ],
+      "tags": [
+        "生存",
+        "地基"
+      ],
+      "rationale": "减伤是乘法生存区的核心，4 层满配 48% 已接近设计上限，因此 maxStack 锁死 4。与心法减伤卡叠加后的总减伤上限需要做通胀检查"
+    },
+    {
+      "id": "ti_thorn",
+      "name": "以柔克刚",
+      "school": "体修",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [
+        {
+          "type": "flatDps",
+          "value": 4
+        }
+      ],
+      "tags": [
+        "反击",
+        "防御转化输出"
+      ],
+      "rationale": "把生存属性转化为输出的唯一通道，解决坦克 Build 在 Boss 战输出不足的问题。+4 是按『满配 12 点、约占终局 DPS 一成』倒推的 [PLACEHOLDER]"
+    },
+    {
+      "id": "ti_bone",
+      "name": "铁骨诀",
+      "school": "体修",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [
+        {
+          "type": "hpPct",
+          "value": 0.16
+        },
+        {
+          "type": "dmgReduce",
+          "value": 0.07
+        }
+      ],
+      "tags": [
+        "生存",
+        "双属性"
+      ],
+      "rationale": "双属性卡，用来验证模型能否正确处理多 effect 叠加。相对单属性卡总值更高（生存乘区约 1.24 倍），因此 maxStack 只有 3"
+    },
+    {
+      "id": "shou_fox",
+      "name": "灵狐伴身",
+      "school": "御兽",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [
+        {
+          "type": "flatDps",
+          "value": 4
+        }
+      ],
+      "tags": [
+        "召唤",
+        "地基"
+      ],
+      "rationale": "御兽的核心是『输出不完全依赖自己出手』，用固定 DPS 建模召唤物贡献。v0.2.1 由 6 下调到 4：原值在前期相当于 +60% DPS，是全表最大的主导卡来源"
+    },
+    {
+      "id": "shou_tide",
+      "name": "兽潮",
+      "school": "御兽",
+      "tier": 1,
+      "maxStack": 6,
+      "effects": [
+        {
+          "type": "flatDps",
+          "value": 2
+        }
+      ],
+      "tags": [
+        "召唤",
+        "可堆叠"
+      ],
+      "rationale": "低单层收益、高叠加上限（6 层共 12 固定 DPS），制造『多拿才划算』的决策张力，与灵狐伴身形成厚度差异"
+    },
+    {
+      "id": "shou_bond",
+      "name": "同心契",
+      "school": "御兽",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [
+        {
+          "type": "flatDps",
+          "value": 7
+        }
+      ],
+      "tags": [
+        "召唤",
+        "高阶"
+      ],
+      "rationale": "御兽高阶卡，单层 7 点固定 DPS。与五雷轰顶（4 点）的价差需要在 playtest 中确认：如果召唤物实战不能全程输出，这个价差会被高估"
+    },
+    {
+      "id": "shou_guard",
+      "name": "灵兽护主",
+      "school": "御兽",
+      "tier": 2,
+      "maxStack": 3,
+      "effects": [
+        {
+          "type": "dmgReduce",
+          "value": 0.08
+        },
+        {
+          "type": "flatDps",
+          "value": 3
+        }
+      ],
+      "tags": [
+        "生存",
+        "召唤联动"
+      ],
+      "rationale": "v0.2.1 差异化：原值（纯减伤 10%）在御兽流派里不如去拿召唤卡，成了死卡。现在把『灵兽护主』的语义做实——灵兽既护主（减伤）也反击（固定 DPS），让它成为御兽流的防御型选择"
+    },
+    {
+      "id": "xin_heal",
+      "name": "聚气诀",
+      "school": "心法",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [
+        {
+          "type": "healOnKill",
+          "value": 0.04
+        },
+        {
+          "type": "hpPct",
+          "value": 0.08
+        }
+      ],
+      "tags": [
+        "恢复",
+        "割草联动"
+      ],
+      "rationale": "v0.2 增加 hpPct 副属性：v0.1 里纯击杀回血在无死亡模型时价值为零（被选中率 0.2%）。回血折算系数必须用真实波次击杀数替换"
+    },
+    {
+      "id": "xin_shield",
+      "name": "静心咒",
+      "school": "心法",
+      "tier": 1,
+      "maxStack": 2,
+      "effects": [
+        {
+          "type": "dmgReduce",
+          "value": 0.15
+        }
+      ],
+      "tags": [
+        "生存",
+        "关键保命"
+      ],
+      "rationale": "v0.2.1 差异化：原值（10%/层、上限 3）被体修的金刚不灭（12%/层、上限 4）完全替代，等于废卡。现在改成『高单层、低上限』的关键保命牌：2 层即可拿到 30% 减伤，代价是叠不厚"
+    },
+    {
+      "id": "xin_step",
+      "name": "疾风步",
+      "school": "心法",
+      "tier": 1,
+      "maxStack": 4,
+      "effects": [
+        {
+          "type": "dmgReduce",
+          "value": 0.06
+        },
+        {
+          "type": "spdPct",
+          "value": 0.1
+        }
+      ],
+      "tags": [
+        "闪避",
+        "攻速",
+        "双属性"
+      ],
+      "rationale": "v0.2.1 差异化：原值（纯减伤 8%）被金刚不灭压制，是张死卡。现在改成『保命 + 攻速』的双属性卡，让它同时服务于生存党和输出党——这是全表唯一同时覆盖两个乘区的卡，用来测试混合构筑是否成立"
+    },
+    {
+      "id": "xin_insight",
+      "name": "顿悟",
+      "school": "心法",
+      "tier": 2,
+      "maxStack": 1,
+      "effects": [
+        {
+          "type": "atkPct",
+          "value": 0.3
+        }
+      ],
+      "tags": [
+        "唯一",
+        "高方差"
+      ],
+      "rationale": "全表唯一的 maxStack=1 卡：一次性 +30% 攻击，拿到就是质变。它存在的唯一目的是拉高 Build 上限、制造终局强度方差——v0.1 的强弱差距只有 1.72×，每局长得一个样，Roguelike 的重玩价值是假的"
+    }
+  ]
+};
+
+export default CARDS_DATA;

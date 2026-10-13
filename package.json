@@ -1,0 +1,13 @@
+{
+  "name": "xiuxian-roguelike",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "修仙 Roguelike 小游戏 —— 纯逻辑层、平衡模拟与可试玩原型",
+  "scripts": {
+    "gen": "node tools/gen-data.mjs",
+    "sim": "node tools/sim/card-sim.mjs",
+    "test": "node --test core/test/",
+    "serve": "node tools/serve.mjs"
+  }
+}
