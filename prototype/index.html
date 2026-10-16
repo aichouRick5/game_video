@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#070b12" />
+<title>修仙 Roguelike · 灰盒试玩版 v0.3</title>
+<!-- 空的 inline 图标：避免浏览器自动请求 favicon.ico 造成一条无意义的 404 -->
+<link rel="icon" href="data:," />
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- 左：游戏舞台。恒定 9:16，居中显示；所有游戏画面与菜单都在这块区域里 -->
+  <div id="stage">
+    <canvas id="game"></canvas>
+
+    <!-- ============ 战斗 HUD（只在战斗时显示） ============ -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="hud-chip">
+          <span class="chip-label">境界</span>
+          <span class="chip-value" id="hud-realm">炼气</span>
+        </div>
+        <div class="hud-chip">
+          <span class="chip-label">第</span>
+          <span class="chip-value" id="hud-wave">1</span>
+          <!-- 波次总数由 renderHud 按数值表写入。曾经这里写死「/ 12 波」，
+               而数值表早已是 18 波，于是 HUD 长期显示「第 18 / 12 波」这种自相矛盾的读数 -->
+          <span class="chip-label" id="hud-waves-total">/ — 波</span>
+        </div>
+        <div class="hud-chip">
+          <span class="chip-label">灵石</span>
+          <span class="chip-value" id="hud-spirit">0</span>
+        </div>
+      </div>
+
+      <div class="hud-hp">
+        <div class="hud-hp-track"><div class="hud-hp-fill" id="hud-hp"></div></div>
+        <div class="hud-hp-text" id="hud-hptext">100 / 100</div>
+      </div>
+
+      <div class="hud-waveprog">
+        <div class="hud-waveprog-track"><div class="hud-waveprog-fill" id="hud-waveprog"></div></div>
+        <div class="hud-waveprog-label" id="hud-wavelabel">本波残余 100%</div>
+      </div>
+
+      <div class="hud-bottom">
+        <div class="hud-timer" id="hud-timer">30.0</div>
+        <div class="hud-hint">WASD / 方向键移动 · 按住屏幕拖动也可 · P 暂停 · ` 开发者面板</div>
+      </div>
+    </div>
+
+    <!-- ============ 大世界（壳）：节点式地图，点击进入 ============ -->
+    <div id="screen-world" class="screen">
+      <div class="screen-head">
+        <h1 class="title">修 仙 录</h1>
+        <p class="subtitle" id="world-subtitle">灰盒试玩版</p>
+      </div>
+
+      <div class="realm-card" id="world-realm-card">
+        <div class="realm-badge" id="world-realm">炼气</div>
+        <div class="realm-info">
+          <div class="realm-line">灵石 <b id="world-spirit">0</b></div>
+          <div class="realm-line dim" id="world-stats">尚未出过手</div>
+        </div>
+      </div>
+
+      <div class="nodes" id="world-nodes">
+        <!-- 节点由 ui.js 生成 -->
+      </div>
+
+      <!-- 试玩引导：灰盒阶段这块比任何装饰都有用，直接告诉试玩者规则 -->
+      <div class="howto">
+        <div class="section-label">怎么玩</div>
+        <ul>
+          <li><b>攻击是自动的</b>——你只需要走位，以及每次三选一时做决定</li>
+          <li><b>移动</b>：WASD / 方向键，或按住屏幕拖动（手机）</li>
+          <li id="howto-waves"><b>一局若干波</b>，每清空一波可以选一门功法，最后一波是秘境之主</li>
+          <li>打不过就多打几局——坊市能永久提升属性</li>
+        </ul>
+      </div>
+
+      <div class="screen-foot">
+        <button class="btn ghost" id="btn-codex">功法录</button>
+        <button class="btn ghost" id="btn-debug">开发者面板</button>
+      </div>
+    </div>
+
+    <!-- ============ 三选一 ============ -->
+    <div id="screen-upgrade" class="screen dark" hidden>
+      <div class="upgrade-head">
+        <div class="upgrade-title" id="upgrade-title">入 门 功 法</div>
+        <div class="upgrade-sub" id="upgrade-sub">第 1 波之前 · 选一门功法入手</div>
+      </div>
+      <div class="cards" id="upgrade-cards"><!-- 由 ui.js 生成 --></div>
+      <div class="upgrade-foot">
+        <div class="dim" id="upgrade-current">当前：尚未习得功法</div>
+      </div>
+    </div>
+
+    <!-- ============ 结算 ============ -->
+    <div id="screen-result" class="screen dark" hidden>
+      <div class="result-head">
+        <div class="result-title" id="result-title">道消身殒</div>
+        <div class="result-sub" id="result-sub"></div>
+      </div>
+      <div class="result-grid" id="result-grid"><!-- 由 ui.js 生成 --></div>
+      <div class="result-build">
+        <div class="section-label">本局构筑</div>
+        <div class="build-list" id="result-build"><!-- 由 ui.js 生成 --></div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn primary" id="btn-result-again">再来一局</button>
+        <button class="btn ghost" id="btn-result-world">返回大世界</button>
+      </div>
+      <div class="result-reward dim" id="result-reward"></div>
+    </div>
+
+    <!-- ============ 暂停 ============ -->
+    <div id="screen-pause" class="screen dark hidden">
+      <div class="pause-wrap">
+        <div class="title small">已 暂 停</div>
+        <p class="subtitle">按 P 或 Esc 继续</p>
+        <button class="btn primary" id="btn-pause-resume">继续</button>
+      </div>
+    </div>
+
+    <!-- ============ 功法录（图鉴） ============ -->
+    <div id="screen-codex" class="screen dark scroll" hidden>
+      <div class="screen-head sticky">
+        <h2 class="title small">功 法 录</h2>
+        <p class="subtitle" id="codex-sub">20 张功法 · 数值均为占位，待试玩校准</p>
+      </div>
+      <div id="codex-body"><!-- 由 ui.js 生成 --></div>
+      <div class="screen-foot">
+        <button class="btn primary" id="btn-codex-back">返回</button>
+      </div>
+    </div>
+
+    <!-- ============ 开发者面板 ============ -->
+    <div id="screen-debug" class="screen dark scroll" hidden>
+      <div class="screen-head sticky">
+        <h2 class="title small">开 发 者 面 板</h2>
+        <p class="subtitle">用于快速验证手感与数值，正式版本会移除</p>
+      </div>
+      <div id="debug-body"><!-- 由 ui.js 生成 --></div>
+      <div class="screen-foot">
+        <button class="btn primary" id="btn-debug-back">返回</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：桌面端的常驻信息栏（窄屏隐藏） -->
+  <aside id="side">
+    <div class="side-block">
+      <div class="section-label">战况</div>
+      <div id="side-status" class="side-main">未开局</div>
+    </div>
+    <div class="side-block">
+      <div class="section-label">当前构筑</div>
+      <div id="side-build" class="side-build">—</div>
+    </div>
+    <div class="side-block">
+      <div class="section-label">属性</div>
+      <div id="side-stats" class="side-stats">—</div>
+    </div>
+    <div class="side-block grow">
+      <div class="section-label">设计说明</div>
+      <div class="side-note">
+        这是一份<strong>灰盒（grey box）</strong>：画面、音效、特效全部是临时的，
+        目的只有一个——验证「每 30 秒做一次有意义的选择」这件事是否成立。<br /><br />
+        所有数值集中在 <code>design/numbers/cards.json</code>，
+        改完执行 <code>npm run gen</code> 即可刷新，无需重新编译。
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!--
+  启动看门狗。
+  为什么需要它：如果 main.js 因为任何原因没能跑起来（语法错误、模块 404、
+  被沙箱环境拒绝），页面会表现成「一块点不动的死板」——所有浮层都不会被隐藏，
+  用户完全不知道发生了什么，只会说「什么都点不了」。
+  这里在 2.5 秒后确认一次，失败就把原因写在屏幕上。
+-->
+<div id="boot-error" class="hidden"></div>
+<script>
+  window.setTimeout(function () {
+    if (window.__game) return;
+    var box = document.getElementById('boot-error');
+    box.classList.remove('hidden');
+    box.innerHTML =
+      '<b>脚本没有启动成功</b><br />' +
+      '这不是玩法问题，是页面没能加载：<br />' +
+      '· 请确认本页是从本地服务器打开的（http://127.0.0.1:5199/prototype/），' +
+      '直接双击 index.html 会因为浏览器限制而拒绝加载 ES 模块<br />' +
+      '· 或者刷新一次页面<br />' +
+      '当前地址：' + location.href;
+  }, 2500);
+</script>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

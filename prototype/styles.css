@@ -1,0 +1,455 @@
+/*
+ * 原型样式：暗墨底 + 金石点缀的水墨仙侠风
+ *
+ * 为什么先做竖屏 9:16：微信小游戏与抖音小游戏的主战场是竖屏手机。
+ * 桌面浏览器打开时，舞台保持在中央，两侧留白给信息栏——这样改数值时
+ * 不用回头切窗口看模拟报告。
+ */
+
+:root {
+  --bg: #06090f;
+  --panel: rgba(16, 25, 36, 0.92);
+  --panel-solid: #111a26;
+  --line: rgba(120, 190, 215, 0.18);
+  --line-strong: rgba(140, 210, 235, 0.4);
+  --text: #dce9f2;
+  --text-dim: #8ba0b3;
+  --gold: #c9a227;
+  --gold-bright: #e8c964;
+  --cyan: #6fe9ff;
+  --danger: #d9506a;
+  --ok: #5fd39a;
+  --serif: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", serif;
+  --sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: radial-gradient(circle at 50% 0%, #0d1622 0%, var(--bg) 70%);
+  color: var(--text);
+  font-family: var(--sans);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  /* 禁止移动端长按选中 / 双击缩放，避免干扰摇杆操作 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+#app {
+  display: flex;
+  height: 100%;
+  gap: 18px;
+  padding: 18px;
+  align-items: stretch;
+  justify-content: center;
+}
+
+/* ============ 舞台 ============ */
+#stage {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  height: 100%;
+  max-width: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  background: #06090f;
+  flex: 0 0 auto;
+}
+
+#game { display: block; width: 100%; height: 100%; touch-action: none; }
+
+/* 舞台在窄屏时铺满宽度 */
+@media (max-aspect-ratio: 9/16) {
+  #stage { width: 100%; height: auto; }
+}
+
+.hidden { display: none !important; }
+.dim { color: var(--text-dim); }
+
+/* ============ 屏幕（覆盖层） ============ */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 20px;
+  gap: 15px;
+  background: linear-gradient(180deg, rgba(8, 13, 20, 0.94) 0%, rgba(6, 10, 16, 0.985) 100%);
+  backdrop-filter: blur(3px);
+  z-index: 20;
+  animation: fade 0.16s ease-out;
+}
+.screen.dark { background: linear-gradient(180deg, rgba(7, 11, 18, 0.97), rgba(5, 8, 13, 0.995)); }
+/*
+ * 所有浮层默认可纵向滚动，而不是只有标了 .scroll 的那几个。
+ *
+ * 起因是一个真实的「什么都点不了」事故：世界界面的内容比舞台高，而舞台是
+ * overflow:hidden 的 9:16 定比盒子，于是底部的「功法录 / 开发者面板」被裁在盒子外面——
+ * 元素存在、onclick 绑着、DOM 查询一切正常，就是点不到。
+ * 内容高度取决于字号、节点条数、说明文案，任何一条改动都可能让它越界，
+ * 所以这里用「默认可滚动」兜底，而不是逐个屏幕去标 .scroll（漏一个就是一次事故）。
+ */
+.screen { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.screen.scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+.screen-head { text-align: center; }
+.screen-head.sticky { position: sticky; top: 0; background: inherit; padding-bottom: 8px; z-index: 2; }
+.title {
+  font-family: var(--serif);
+  font-size: 40px;
+  letter-spacing: 0.32em;
+  margin: 0 0 6px;
+  color: var(--gold-bright);
+  text-shadow: 0 0 26px rgba(201, 162, 39, 0.35);
+  font-weight: 500;
+}
+.title.small { font-size: 26px; letter-spacing: 0.22em; }
+.subtitle { margin: 0; font-size: 12px; color: var(--text-dim); letter-spacing: 0.06em; }
+
+.screen-foot {
+  margin-top: auto;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding-top: 12px;
+}
+
+/* ============ 按钮 ============ */
+.btn {
+  font-family: var(--serif);
+  font-size: 16px;
+  letter-spacing: 0.14em;
+  padding: 12px 26px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease;
+  border: 1px solid var(--line-strong);
+  background: rgba(20, 32, 45, 0.8);
+  color: var(--text);
+}
+.btn:active { transform: scale(0.96); }
+.btn.primary {
+  background: linear-gradient(180deg, rgba(201, 162, 39, 0.95), rgba(150, 116, 20, 0.95));
+  border-color: var(--gold-bright);
+  color: #14100a;
+  font-weight: 700;
+}
+.btn.ghost { background: rgba(18, 28, 40, 0.7); color: var(--text-dim); }
+.btn.ghost:hover { color: var(--text); border-color: var(--line-strong); }
+.btn.tiny { font-size: 12px; padding: 7px 13px; letter-spacing: 0.05em; border-radius: 7px; }
+.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.btn.wide { width: 100%; }
+
+/* ============ HUD ============ */
+#hud { position: absolute; inset: 0; z-index: 10; pointer-events: none; padding: 14px; }
+.hud-top { display: flex; gap: 8px; align-items: center; }
+.hud-chip {
+  display: flex; align-items: baseline; gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.hud-chip:last-child { margin-left: auto; }
+.chip-value { font-size: 15px; color: var(--gold-bright); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.hud-hp { margin-top: 10px; position: relative; height: 20px; }
+.hud-hp-track {
+  height: 12px; border-radius: 6px; overflow: hidden;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--line);
+}
+.hud-hp-fill {
+  height: 100%; width: 100%;
+  background: linear-gradient(90deg, #3fae7c, #6fe0a8);
+  transition: width 0.1s linear, background 0.2s ease;
+}
+.hud-hp-fill.warn { background: linear-gradient(90deg, #c99a1f, #e8c94a); }
+.hud-hp-fill.bad { background: linear-gradient(90deg, #a52b46, #d9506a); }
+.hud-hp-text {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  text-shadow: 0 1px 3px #000; font-variant-numeric: tabular-nums;
+}
+
+.hud-waveprog { margin-top: 8px; }
+.hud-waveprog-track {
+  height: 4px; border-radius: 2px; background: rgba(0, 0, 0, 0.55);
+  overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.hud-waveprog-fill { height: 100%; width: 100%; background: rgba(201, 162, 39, 0.85); transition: width 0.1s linear; }
+.hud-waveprog-label { margin-top: 4px; font-size: 10px; color: var(--text-dim); letter-spacing: 0.05em; }
+
+.hud-bottom {
+  position: absolute; left: 14px; right: 14px; bottom: 14px;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 10px;
+}
+.hud-timer {
+  font-size: 30px; font-weight: 800; color: var(--text);
+  font-variant-numeric: tabular-nums; line-height: 1;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+}
+.hud-timer.urgent { color: var(--danger); }
+.hud-hint { font-size: 9.5px; color: rgba(139, 160, 179, 0.65); text-align: right; line-height: 1.5; }
+
+/* 波次横幅：Boss 波 / 过关提示 */
+.banner {
+  position: absolute; left: 0; right: 0; top: 38%;
+  text-align: center; font-family: var(--serif);
+  font-size: 30px; letter-spacing: 0.34em; color: var(--gold-bright);
+  text-shadow: 0 0 30px rgba(201, 162, 39, 0.7);
+  pointer-events: none; animation: banner 1.5s ease-out forwards;
+  z-index: 12;
+}
+.banner.calm { color: var(--cyan); text-shadow: 0 0 30px rgba(111, 233, 255, 0.6); }
+@keyframes banner {
+  0% { opacity: 0; transform: scale(1.3); }
+  18% { opacity: 1; transform: scale(1); }
+  72% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+
+/* ============ 大世界 ============ */
+.realm-card {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 14px; padding: 14px 16px;
+}
+.realm-badge {
+  font-family: var(--serif); font-size: 22px; letter-spacing: 0.16em;
+  color: #14100a; background: linear-gradient(160deg, var(--gold-bright), var(--gold));
+  padding: 9px 15px; border-radius: 10px; font-weight: 700; white-space: nowrap;
+}
+.realm-info { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.realm-line b { color: var(--gold-bright); font-size: 15px; }
+
+.nodes { display: flex; flex-direction: column; gap: 11px; }
+.node {
+  display: flex; align-items: center; gap: 13px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 13px; padding: 14px 16px; cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.08s ease, background 0.15s ease;
+  text-align: left; font-family: var(--sans); color: var(--text);
+  width: 100%;
+}
+.node:hover:not(:disabled) { border-color: var(--line-strong); background: rgba(24, 38, 54, 0.94); }
+.node:active:not(:disabled) { transform: scale(0.985); }
+.node:disabled { opacity: 0.42; cursor: not-allowed; }
+.node-icon {
+  width: 42px; height: 42px; flex: 0 0 42px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-size: 20px;
+  background: rgba(111, 233, 255, 0.09); border: 1px solid var(--line); color: var(--cyan);
+}
+.node-icon.gold { background: rgba(201, 162, 39, 0.12); color: var(--gold-bright); border-color: rgba(201, 162, 39, 0.3); }
+.node-body { flex: 1; min-width: 0; }
+.node-name { font-family: var(--serif); font-size: 17px; letter-spacing: 0.12em; margin-bottom: 3px; }
+.node-desc { font-size: 11.5px; color: var(--text-dim); line-height: 1.45; }
+.node-tail {
+  font-size: 11px; color: var(--text-dim); text-align: right; white-space: nowrap;
+  align-self: flex-start; padding-top: 3px;
+}
+
+/* ============ 试玩引导 ============ */
+.howto {
+  background: rgba(16, 25, 36, 0.6);
+  border: 1px dashed var(--line);
+  border-radius: 13px;
+  padding: 14px 18px;
+}
+.howto ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 7px; }
+.howto li { font-size: 11.5px; line-height: 1.6; color: var(--text-dim); }
+.howto b { color: var(--cyan); font-weight: 500; }
+
+/* ============ 三选一 ============ */
+.upgrade-head { text-align: center; margin-top: 8px; }
+.upgrade-title { font-family: var(--serif); font-size: 26px; letter-spacing: 0.3em; color: var(--gold-bright); }
+.upgrade-sub { margin-top: 6px; font-size: 11.5px; color: var(--text-dim); }
+.cards { display: flex; flex-direction: column; gap: 13px; margin: auto 0; }
+.card {
+  border: 1px solid var(--line); border-radius: 14px;
+  background: linear-gradient(150deg, rgba(23, 36, 51, 0.96), rgba(14, 22, 32, 0.96));
+  padding: 15px 17px; cursor: pointer; text-align: left; color: var(--text);
+  font-family: var(--sans);
+  transition: border-color 0.14s ease, transform 0.08s ease, box-shadow 0.14s ease;
+  position: relative; overflow: hidden;
+}
+.card:hover { border-color: var(--line-strong); box-shadow: 0 0 0 1px rgba(140, 210, 235, 0.12), 0 10px 30px rgba(0, 0, 0, 0.4); }
+.card:active { transform: scale(0.985); }
+.card-top { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.card-name { font-family: var(--serif); font-size: 19px; letter-spacing: 0.14em; flex: 1; }
+.card-school {
+  font-size: 10.5px; padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--line-strong); color: var(--cyan); letter-spacing: 0.08em;
+}
+.card-tier { font-size: 10px; color: var(--gold); letter-spacing: 0.06em; }
+.card-effects { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+.eff {
+  font-size: 11.5px; padding: 3px 9px; border-radius: 6px;
+  background: rgba(111, 233, 255, 0.1); color: #a8ecff; border: 1px solid rgba(111, 233, 255, 0.16);
+  font-variant-numeric: tabular-nums;
+}
+.eff.survival { background: rgba(95, 211, 154, 0.1); color: #9ce6c0; border-color: rgba(95, 211, 154, 0.18); }
+.card-rationale { font-size: 10.5px; color: rgba(139, 160, 179, 0.8); line-height: 1.55; }
+.card-stack { font-size: 10.5px; color: var(--text-dim); margin-top: 7px; }
+.card.rest { border-style: dashed; }
+.upgrade-foot { text-align: center; padding-top: 6px; font-size: 11.5px; }
+
+/* ============ 结算 ============ */
+.result-head { text-align: center; margin-top: 10px; }
+.result-title { font-family: var(--serif); font-size: 34px; letter-spacing: 0.34em; }
+.result-title.win { color: var(--gold-bright); text-shadow: 0 0 30px rgba(201, 162, 39, 0.5); }
+.result-title.lose { color: var(--danger); }
+.result-sub { margin-top: 7px; font-size: 12px; color: var(--text-dim); }
+.result-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 13px; padding: 14px;
+}
+.stat { display: flex; flex-direction: column; gap: 3px; }
+.stat-k { font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.05em; }
+.stat-v { font-size: 19px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.stat-v.gold { color: var(--gold-bright); }
+.result-build { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.build-list { display: flex; flex-wrap: wrap; gap: 7px; align-content: flex-start; overflow-y: auto; }
+.build-tag {
+  font-size: 11.5px; padding: 5px 10px; border-radius: 7px;
+  background: rgba(111, 233, 255, 0.09); border: 1px solid rgba(111, 233, 255, 0.16);
+  color: #a8ecff;
+}
+.build-tag b { color: var(--gold-bright); margin-left: 5px; }
+.result-reward { text-align: center; font-size: 11.5px; }
+
+.section-label {
+  font-size: 10.5px; letter-spacing: 0.18em; color: var(--gold);
+  text-transform: uppercase; margin-bottom: 8px;
+}
+
+/* ============ 暂停 ============ */
+.pause-wrap {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  text-align: center;
+}
+
+/* ============ 图鉴 ============ */
+.codex-school { margin-bottom: 20px; }
+.codex-school-head {
+  font-family: var(--serif); font-size: 18px; letter-spacing: 0.2em;
+  color: var(--cyan); margin-bottom: 10px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.codex-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 11px;
+  padding: 12px 14px; margin-bottom: 9px;
+}
+.codex-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.codex-name { font-family: var(--serif); font-size: 16px; letter-spacing: 0.1em; }
+.codex-meta { font-size: 10.5px; color: var(--text-dim); margin-left: auto; }
+.codex-why { font-size: 10.5px; color: rgba(139, 160, 179, 0.8); line-height: 1.6; margin-top: 7px; }
+
+/* ============ 开发者面板 ============ */
+.debug-group { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; margin-bottom: 12px; }
+.debug-group h3 { font-size: 12px; letter-spacing: 0.14em; color: var(--gold); margin: 0 0 10px; font-weight: 500; }
+.debug-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.debug-row + .debug-row { margin-top: 8px; }
+.debug-kv { font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.debug-kv b { color: var(--text); }
+input[type="range"] { flex: 1; min-width: 110px; accent-color: var(--gold); }
+select, input[type="number"] {
+  background: rgba(10, 17, 25, 0.9); color: var(--text);
+  border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; font-size: 12px;
+  font-family: var(--sans);
+}
+
+/* ============ 右侧信息栏 ============ */
+#side {
+  width: 280px;
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+.side-block {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 13px; padding: 14px 16px;
+}
+.side-block.grow { flex: 1; }
+.side-main { font-size: 13.5px; line-height: 1.7; }
+.side-build { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-dim); }
+.side-build .sb-row { display: flex; justify-content: space-between; gap: 8px; }
+.side-build .sb-row b { color: var(--cyan); font-weight: 500; }
+.side-stats { display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
+.side-stats .ss-row { display: flex; justify-content: space-between; }
+.side-stats .ss-row span:last-child { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+.side-note { font-size: 11.5px; line-height: 1.75; color: rgba(139, 160, 179, 0.85); }
+.side-note strong { color: var(--gold-bright); font-weight: 500; }
+.side-note code {
+  background: rgba(111, 233, 255, 0.09); padding: 1px 5px; border-radius: 4px;
+  font-size: 10.5px; color: var(--cyan); font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* 窄屏隐藏侧栏：小游戏环境没有侧栏 */
+/*
+ * 矮视口（预览面板、横屏手机、分屏窗口）：压缩纵向装饰。
+ * 目标只有一个——让「秘境」入口和底部按钮都在首屏内，不需要滚动就能点到。
+ * 实测 420×620 时若不压缩，底部两个按钮会被挤出可视区。
+ */
+@media (max-height: 820px) {
+  .screen { padding: 16px 16px; gap: 10px; }
+  .title { font-size: 30px; margin-bottom: 2px; }
+  .title.small { font-size: 22px; }
+  .subtitle { font-size: 10.5px; }
+  .realm-card { padding: 10px 14px; }
+  .nodes { gap: 8px; }
+  .node { padding: 11px 14px; gap: 10px; }
+  .node-icon { width: 34px; height: 34px; flex: 0 0 34px; font-size: 17px; }
+  .howto { padding: 10px 14px; }
+  .howto ul { gap: 4px; }
+  .howto li { font-size: 10.5px; line-height: 1.5; }
+  .screen-foot { padding-top: 6px; }
+}
+
+/* 极矮视口（舞台本身只有 400px 上下）：说明文字让位给可操作性。
+   规则本身在「怎么玩」和右侧信息栏里都还有，这里不是唯一入口。 */
+@media (max-height: 620px) {
+  .howto { display: none; }
+  .title { font-size: 24px; }
+  .node-desc { display: none; }
+}
+
+@media (max-width: 900px), (max-aspect-ratio: 3/4) {
+  #side { display: none; }
+  #app { padding: 0; gap: 0; }
+  #stage { border-radius: 0; border: none; height: 100%; }
+}
+
+/* ============ 启动失败提示（见 index.html 的看门狗） ============ */
+#boot-error {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px;
+  background: rgba(6, 9, 15, 0.97);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.75;
+}
+#boot-error b { color: var(--danger); font-size: 15px; }

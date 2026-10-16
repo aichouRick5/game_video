@@ -42,84 +42,132 @@
 
 ---
 
-## 二、工程结构
+## 二、一分钟上手
+
+```bash
+npm run serve          # 起浏览器灰盒原型 → http://127.0.0.1:5199/prototype/
+npm run check          # 提交前跑这个：生成数据 + 单测 + 万局模拟
+```
+
+原型就是当前可试玩版本，**不用等 Cocos 打包**。玩法：`WASD`/方向键走位（攻击自动），
+每次清空一波做一次三选一，`` ` `` 打开开发者面板（无敌、倍速、跳波次、指定发卡）。
+
+---
+
+## 三、工程结构
 
 ```
 video_code/
-├── README.md                  本文件：环境、结构、约定
-├── art/
-│   └── style-samples/         美术风格样图（Q版 / 水墨）
-├── core/                      纯逻辑层：不依赖引擎，可单测、可批跑
-│   └── src/
-│       ├── types.ts           数据契约（卡牌、属性、玩家模型）
-│       └── score.ts           Build 评分模型（纯函数）
-├── design/
-│   └── numbers/
-│       ├── cards.json         功法卡数值表 v0.1（全部 PLACEHOLDER）
-│       └── sim-report.md      Monte Carlo 模拟报告（自动生成）
+├── README.md
+├── credentials.md            平台账号记录（已 .gitignore，永不入库）
+├── art/style-samples/        美术风格样图（Q版 / 水墨）
+├── core/                     纯逻辑层：不含 cc.* / wx.* / tt.*，可单测、可万局批跑
+│   ├── src/
+│   │   ├── types.js          数据契约与常量（效果类型、生存类效果定义）
+│   │   ├── data.generated.js 由 cards.json 生成 —— 不要手改，改完 npm run gen
+│   │   ├── rng.js            带种子的可复现随机（mulberry32）
+│   │   ├── stats.js          Build 属性聚合与评分（DPS 乘区、生存乘区）
+│   │   ├── deck.js           卡池、流派保底、三选一
+│   │   ├── balance.js        解析式波次评估 —— 万局模拟的地基
+│   │   ├── battle.js         单局实时战斗状态机（刷怪 / 走位 / 伤害数字 / 波间强化）
+│   │   ├── economy.js        灵石 sources & sinks
+│   │   ├── meta.js           境界与局外成长
+│   │   └── save.js           存档序列化（纯函数，不碰任何平台 API）
+│   └── test/                 169 项单测（node --test，零依赖，<2 秒）
+├── design/numbers/
+│   ├── cards.json            数值表 v0.3.2（全部 PLACEHOLDER，每项附 rationale）
+│   └── sim-report.md         Monte Carlo 报告（自动生成）
+├── prototype/                浏览器灰盒原型
+│   ├── index.html · styles.css
+│   ├── src/{main,ui,render,input,storage}.js
+│   └── shots/                自动截图（视觉回归基线）
 ├── tools/
+│   ├── gen-data.mjs          cards.json → data.generated.js，含跨段一致性校验
+│   ├── serve.mjs             零依赖静态服务器
+│   ├── smoke-prototype.mjs   原型接线与流程检查（假 DOM + 虚拟时钟，约 2 秒）
+│   ├── browser-check.mjs     真实 Chrome：视觉核查 + 顶层命中测试
+│   ├── wave-conformance.mjs  解析式模型 ↔ 实时战斗 的逐波一致性核对
 │   └── sim/
-│       └── card-sim.ts        抽卡模拟器
-└── game/                       Cocos Creator 工程（已创建 · Empty(2D) 模板 · Creator 3.8.8）
-    ├── assets/scripts/         游戏脚本（View 层组件放这里）
-    ├── settings/               项目设置（2D 模块已启用，3D 已关闭）
-    └── package.json            工程描述（name/uuid/version/type=2d）
+│       ├── card-sim.mjs      万局抽卡与通关模拟
+│       └── tune-grid.mjs     数值参数搜索器（调难度时用）
+└── game/                     Cocos Creator 工程（Empty 2D 模板 · Creator 3.8.8）
 ```
 
-### 三条不可妥协的约定
+### 四条不可妥协的约定
 
 1. **`core/` 里不许出现 `cc.*`、`wx.*`、`tt.*`**。逻辑与表现分离，是为了让数值和概率能在引擎之外被测试；一旦逻辑写进 Cocos 组件，就只能靠人肉玩来验证概率，效率差一个数量级。
 2. **所有数值只存 `design/numbers/*.json`，不写死在代码里**。改数值不需要重新编译，这是调平衡的前提。
 3. **未经 playtest 的数值一律标 `PLACEHOLDER`**，并写明依据与验证路径。禁止 magic number。
+4. **表现层参数不得渗进平衡结论**。`spawn.swarmPerWave`（每波摊成几个小怪）曾被当作纯表现参数，但击杀奖励按屏幕上的敌人个数发，实际产出被放大 4 倍；同类事故还有 HUD 里写死的「/ 12 波」。凡是「只影响观感」的参数，都必须有一条测试证明它对平衡真的没有影响。
 
 ---
 
-## 三、如何运行逻辑层测试与模拟
+## 四、常用命令
 
-```bash
-# 抽卡 Monte Carlo（零依赖，Node 22 直接跑 TS）
-node --experimental-strip-types tools/sim/card-sim.ts
-```
+| 命令 | 作用 |
+|---|---|
+| `npm run serve` | 起原型（<http://127.0.0.1:5199/prototype/>） |
+| `npm run gen` | `cards.json` → `data.generated.js`，带跨段一致性校验 |
+| `npm test` | 169 项单测 |
+| `npm run sim` | 万局 Monte Carlo → `design/numbers/sim-report.md` |
+| `npm run check` | gen + test + sim 串跑（提交前必过） |
+| `npm run smoke` | 原型接线与流程（8 条链路） |
+| `npm run visual` | 真实 Chrome 截图 + 命中测试（约 30 秒） |
+| `npm run conform` | 两份模型的逐波一致性核对 |
+| `npm run tune` | 数值参数网格搜索（改难度用） |
 
-```bash
-# 命令行构建（Cocos Creator 3.8.8，注意：命令行无法创建项目，项目内也需已有场景）
-"D:\Cocos\cocos\Creator\3.8.8\CocosCreator.exe" --project D:\AICODE\workBuddy_code\video_code\game --build "platform=web-mobile;debug=true"
-# 退出码：36 = 构建成功 / 32 = 参数不合法 / 34 = 构建过程出错
-```
+### 为什么有四个验证工具，而不是一个
 
-输出：控制台报告 + `design/numbers/sim-report.md`（固定随机种子，任何人跑结果一致，便于对比改动效果）。
+它们抓的是**完全不同类别**的问题，缺一类就会漏掉一整批 bug：
 
-模拟器回答三个结构性问题：
-- 有没有**死亡卡**（一万局几乎无人选）
-- 有没有**主导卡**（被选中率远超均匀基准）
-- 一局的终局强度分布有多窄（太窄 = 每局长一个样，重玩价值是假的）
+| 工具 | 抓什么 | 抓不到什么 |
+|---|---|---|
+| 单测 | 纯逻辑的正确性（169 项） | 界面、接线、观感 |
+| `smoke-prototype` | 接线与流程（点击有没有接上、阶段切换、存档往返） | 像素、布局、遮挡 |
+| `browser-check` | 真实浏览器里的布局、对比度、遮挡、**元素能不能点到** | 数值是否好玩 |
+| `wave-conformance` | 两份模型（解析式 / 实时）的难度结论是否一致 | 玩起来爽不爽 |
+
+`browser-check` 里的「顶层命中测试」是踩坑后加的：它遍历所有可交互元素，逐个问浏览器
+`document.elementFromPoint(中心点)` 站的是谁。**元素存在 ≠ 元素可点**——DOM 查询、onclick 绑定、
+元素可见性全部正常，一个没被正确隐藏的全屏浮层就能吞掉所有点击，表现为「什么都点不了」。
+
+### 单局时长的约束放在哪
+
+「一局 6-10 分钟」是产品级约束，但它测不到任何单个函数上——它取决于波数、波次时长、
+敌人数值、玩家成长曲线四者的合力。所以它由 `npm run sim` 强制：跑出区间外直接以非零码退出，
+`npm run check` 因此会失败。**别把它写成单测**，那会变成一条假绿。
 
 ---
 
-## 四、调试约定（工程化提速的关键）
+## 五、开发者面板（工程化提速的关键）
 
-游戏内 Debug 面板第一版就要做，清单：
+原型里按 `` ` `` 打开，已实现：
 
-1. 跳波次 / 直达 Boss
-2. 指定给卡（直接构造目标 Build）
-3. 时间倍速 1x / 2x / 4x
-4. 无敌 / 秒杀
-5. 强制触发广告与内购沙箱
-6. 数值热改（改 JSON 立即生效）
-7. 固定随机种子（复现 bug 的唯一可靠办法）
+| 功能 | 状态 | 说明 |
+|---|---|---|
+| 跳波次 / 直达 Boss | ✅ | 不用打 7 分钟就能看第 18 波 |
+| 指定给卡 | ✅ | 直接构造目标 Build |
+| 时间倍速 1x / 2x / 4x | ✅ | |
+| 无敌 | ✅ | |
+| 数值热改 | ✅ | 改 JSON → `npm run gen` → 刷新 |
+| 固定随机种子 | ✅ | 复现 bug 的唯一可靠办法；`window.__game` 也能直接用 |
+| 广告与内购沙箱 | ⬜ | 等商业化点位确定后接 |
 
 ---
 
-## 五、当前进度
+## 六、当前进度
 
-- [x] 平台与变现路线确定：微信 / 抖音小游戏 + H5，内购 + 广告
-- [x] 设计骨架确认：2D 节点大世界做壳 + 单局 Roguelike 做核
-- [x] 单局时长确定：6-10 分钟
-- [x] 纯逻辑层骨架 + 数值表 v0.1 + Monte Carlo 模拟器跑通
-- [x] Cocos Creator 3.8.8 安装于 `D:\Cocos\cocos\Creator\3.8.8`，`game/` 工程已用 Empty(2D) 模板创建
-- [ ] 在 Dashboard 中打开 `game/` 验证工程（首次打开会生成 library/temp 缓存），创建首个场景
-- [ ] 把 `core/` 纯逻辑层迁入 `game/assets/scripts/core/`（Cocos 只打包 assets 下的脚本），并引入单测工具
-- [ ] 灰盒战斗（验证单局时长与爽感峰值）
-- [ ] 大世界壳（节点地图）与资源流转
-- [ ] 商业化点位（广告 + 内购）
-- [ ] 版本迭代规划与资质办理
+- [x] 平台与变现路线：微信 / 抖音小游戏 + H5，内购 + 广告
+- [x] 设计骨架：2D 节点大世界做壳 + 单局 Roguelike 做核
+- [x] 单局时长：6-10 分钟（模拟实测 7.03 分钟，已进区间并由 `npm run check` 守住）
+- [x] 纯逻辑层：rng / stats / deck / balance / battle / economy / meta / save
+- [x] 数值表 v0.3.2（20 张卡 / 5 流派），万局模拟收敛，无死亡卡、无主导卡
+- [x] 169 项单测 + 4 个验证工具
+- [x] 浏览器灰盒原型可试玩：Canvas 实时战斗 + DOM 菜单 + 大世界壳 + 局外成长 + 存档
+- [x] 打通 Cocos Creator 3.8.8 工程（`game/`，Empty 2D 模板）
+- [ ] 真人 playtest 校准（当前全部数值仍是 PLACEHOLDER）
+- [ ] 把 `core/` 迁入 `game/assets/scripts/`，用 Cocos 重做渲染层
+- [ ] 大世界壳的资源流转与机缘系统
+- [ ] 美术风格定稿（Q版亮色 vs 国风水墨，样图在 `art/style-samples/`）
+- [ ] 商业化点位（广告 + 内购沙箱）
+- [ ] 资质办理：公司注册 / 软著 / 平台账号（与开发并行）
