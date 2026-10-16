@@ -85,9 +85,31 @@ function simulate(profile, runs, rng) {
   let wins = 0;
   let totalPicks = 0;
   let runSeconds = 0;
+  /**
+   * 逐波难度余量观测。
+   *
+   * 「通关率」只告诉你会不会死，不告诉你难度曲线是不是合理。
+   * 这两个数组回答后一个问题：
+   *   - clearRate[w]：打到第 w 波的局里，有多少比例在时限内清空了
+   *   - waveSeconds[w]：平均花在这一波的秒数（上限是 combatWindow）
+   * 如果前期 clearRate 已经是 100% 且 waveSeconds 只有两三秒，
+   * 说明那一波对玩家毫无威胁，属于「走过场」。
+   */
+  const waveReach = new Array(base.waves).fill(0);
+  const waveClear = new Array(base.waves).fill(0);
+  const waveSeconds = new Array(base.waves).fill(0);
 
   for (let run = 0; run < runs; run++) {
     let owned = new Map();
+    /**
+     * 逐波属性时间线：timeline[w-1] = 打第 w 波时手里那套 Build 的属性。
+     *
+     * 这个数组是本模拟器最关键的一处建模。真实游戏是「先三选一，再打一波」，
+     * 所以第 1 波只有 1 张卡、第 18 波有 18 张卡。
+     * 早期版本只把最后一手属性传给评估函数，等于让玩家「拿着 18 张卡打第 1 波」——
+     * 难度曲线被整体抹平，模拟出来的单局时长（4-5 分钟）远低于设计目标。
+     */
+    const timeline = [];
 
     for (let step = 0; step < profile.steps; step++) {
       const pool = cards.filter((c) => (owned.get(c.id) ?? 0) < c.maxStack);
@@ -109,6 +131,8 @@ function simulate(profile, runs, rng) {
       pickCount.set(chosen.id, (pickCount.get(chosen.id) ?? 0) + 1);
       schoolPicks.set(chosen.school, (schoolPicks.get(chosen.school) ?? 0) + 1);
       totalPicks++;
+
+      timeline.push(computeStats(owned, cardIndex, base));
     }
 
     for (const [id, n] of owned) stacksAtEnd.set(id, (stacksAtEnd.get(id) ?? 0) + n / runs);
@@ -116,14 +140,25 @@ function simulate(profile, runs, rng) {
     const stats = computeStats(owned, cardIndex, base);
     finalScores.push(scoreFromStats(stats, profile.survivalWeight));
 
-    const outcome = evaluateRun(stats, data);
+    const outcome = evaluateRun(timeline, data);
     clearedWaves.push(outcome.clearedWave);
-    hpLeftRatios.push(outcome.hp / stats.maxHp);
-    runSeconds = outcome.runSeconds;
+    hpLeftRatios.push(outcome.hpRatio);
+    // 累加求平均——早期版本只保留最后一局的值，于是报告里的时长实际是「某一局的时长」
+    runSeconds += outcome.runSeconds;
     if (!outcome.dead) wins++;
+
+    for (const log of outcome.waveLogs) {
+      const i = log.wave - 1;
+      waveReach[i]++;
+      if (log.overflow <= 0) waveClear[i]++;
+      waveSeconds[i] += log.seconds;
+    }
   }
 
-  return { pickCount, offerCount, schoolPicks, stacksAtEnd, finalScores, clearedWaves, hpLeftRatios, wins, totalPicks, runSeconds };
+  return {
+    pickCount, offerCount, schoolPicks, stacksAtEnd, finalScores, clearedWaves, hpLeftRatios,
+    wins, totalPicks, runSeconds: runSeconds / runs, waveReach, waveClear, waveSeconds,
+  };
 }
 
 function scoreOf(owned, survivalWeight) {
@@ -147,12 +182,34 @@ const profiles = [
   { name: '新手（随机偏多）', survivalWeight: 0.3, noise: 0.6, steps: base.upgradeStepsPerRun },
 ];
 
+// 先跑完所有玩家模型，再写报告。
+// 顺序不能反过来：报告的抬头要给出「真实平均单局时长」，而那个数只有跑完才知道。
+// 早期版本在跑之前就写死了 `waves × (waveDuration + upgradePause)`，
+// 那是「每一波都打满 30 秒」的理论上限，比真实值高出一倍，直接把时长目标架空了。
+const results = profiles.map((profile) => {
+  const rng = mulberry32(SEED);
+  return { profile, res: simulate(profile, RUNS, rng) };
+});
+const realMinutes = avg(results.map((r) => r.res.runSeconds)) / 60;
+const lengthVerdict =
+  realMinutes < 6 ? '**低于目标：一局太快结束，玩家来不及感受到 Build 成型**'
+    : realMinutes > 10 ? '**高于目标：超出移动端单次游玩的耐心上限**'
+      : '落在目标区间内';
+
+// 单局时长是产品级约束（用户明确要求 6-10 分钟），但它测不到「某一个函数」上，
+// 因此不能写成单元测试——它取决于波数、波次时长、敌人数值、玩家成长曲线四者的合力。
+// 放在这里强制执行：只要改动任何一处数值把它带出区间，npm run check 就会失败。
+const RUN_MINUTES_TARGET = [6, 10];
+const lengthOk = realMinutes >= RUN_MINUTES_TARGET[0] && realMinutes <= RUN_MINUTES_TARGET[1];
+
 say('# Monte Carlo 抽卡与通关模拟报告');
 say('');
 say(`- 数值表版本：**${data.version}**（${data.status}）`);
 say(`- 模拟规模：${RUNS} 局 × 每局 ${base.upgradeStepsPerRun} 次三选一 / 固定随机种子 ${SEED}`);
-say(`- 单局时长：${base.waves} 波 × (${base.waveDuration}s 战斗 + ${data.enemy.upgradePauseSec}s 强化) = ${(base.waves * (base.waveDuration + data.enemy.upgradePauseSec) / 60).toFixed(1)} 分钟`);
-say('- 模型：解析式波次评估（含死亡判定），只比较 Build 相对强弱，不含走位与操作');
+say(`- 单局时长（模拟真实累计）：**${realMinutes.toFixed(2)} 分钟** —— ${lengthVerdict}`);
+say(`  - 构成为「各波清空耗时之和 + ${base.waves} × ${data.enemy.upgradePauseSec}s 强化选择」；上限 ${(base.waves * (base.waveDuration + data.enemy.upgradePauseSec) / 60).toFixed(1)} 分钟`);
+say(`  - 阵亡局按「血量耗尽的那一刻」计时，不会虚假地按打满整波计算`);
+say('- 模型：解析式波次评估（含死亡判定、含 Build 逐波成长），只比较 Build 相对强弱，不含走位与操作');
 say('');
 
 // 波次难度基准表：设计文档要用的硬数据
@@ -165,15 +222,14 @@ for (let w = 1; w <= base.waves; w++) {
   say(`| ${w}${s.isBoss ? ' (Boss)' : ''} | ${s.count} | ${Math.round(s.totalHp)} | ${s.requiredDps.toFixed(1)} | ${s.incomingDps.toFixed(1)} |`);
 }
 say('');
-say('> 初始 DPS = 10（攻击 10 × 攻速 1.0）。一张卡平均要带来多少增幅才能跟上这条曲线，是数值设计的核心命题。');
+say('> 初始 DPS = 10（攻击 10 × 攻速 1.0）。「通关所需 DPS」是**在波次时限内清空**这一波的门槛，');
+say('> 达不到也能活到下一波，只是会挨一次超时反噬并且拿不到波次奖励。');
 say('');
 
 const uniform = 1 / cards.length;
 let worstSpread = Infinity;
 
-for (const profile of profiles) {
-  const rng = mulberry32(SEED);
-  const res = simulate(profile, RUNS, rng);
+for (const { profile, res } of results) {
   const sorted = [...res.finalScores].sort((a, b) => a - b);
   const spread = percentile(sorted, 90) / Math.max(1, percentile(sorted, 10));
   worstSpread = Math.min(worstSpread, spread);
@@ -182,6 +238,7 @@ for (const profile of profiles) {
   say('');
   say(`- 通关率：**${pct(res.wins / RUNS)}**　平均推进到第 ${avg(res.clearedWaves).toFixed(1)} 波（共 ${base.waves} 波）`);
   say(`- 结算时剩余血量：平均 ${pct(avg(res.hpLeftRatios))}`);
+  say(`- 平均单局时长：${(res.runSeconds / 60).toFixed(2)} 分钟`);
   say(`- 终局强度：P10 ${percentile(sorted, 10).toFixed(0)} / P50 ${percentile(sorted, 50).toFixed(0)} / P90 ${percentile(sorted, 90).toFixed(0)}`);
   say(`- 强弱差距（P90÷P10）：${spread.toFixed(2)}× —— ${spread < 1.25 ? '**过窄：每局长一个样，重玩价值不足**' : spread < 1.8 ? '偏窄：建议拉开卡牌间的收益差异' : '健康'}`);
   say('');
@@ -208,6 +265,21 @@ for (const profile of profiles) {
   say(`> 均匀分布基准 ${pct(uniform)}；显著高于基准 = 在所有 Build 里都是最优解，显著低于 = 数值没有意义。`);
   say('');
 
+  // 难度曲线：只有看到「每波平均花多久、多少比例的局能清空」，才能判断曲线是
+  // 单调加压还是中间有断层。只看通关率是看不到这件事的。
+  const window = Math.max(1, base.waveDuration - Math.min(base.waveDuration * 0.5, data.enemy.approachOverheadSec ?? 0));
+  const curve = [];
+  for (let w = 0; w < base.waves; w++) {
+    if (!res.waveReach[w]) { curve.push(`${w + 1}:—`); continue; }
+    const rate = res.waveClear[w] / res.waveReach[w];
+    const secs = res.waveSeconds[w] / res.waveReach[w];
+    curve.push(`${w + 1}:${Math.round(rate * 100)}%/${secs.toFixed(1)}s`);
+  }
+  say(`**逐波清空率 / 平均耗时**（窗口上限 ${window.toFixed(1)}s）：`);
+say('');
+  say(curve.join('　'));
+  say('');
+
   const schoolRows = data.schools
     .map((s) => ({ s, n: res.schoolPicks.get(s) ?? 0 }))
     .sort((a, b) => b.n - a.n);
@@ -218,7 +290,7 @@ for (const profile of profiles) {
 // 结构结论：这段是给设计决策用的，不是给机器看的
 say('## 结构结论');
 say('');
-say(`- 单局时长由波次配置决定：${(base.waves * (base.waveDuration + data.enemy.upgradePauseSec) / 60).toFixed(1)} 分钟（目标区间 6-10 分钟）`);
+say(`- 真实平均单局时长：${realMinutes.toFixed(2)} 分钟（目标区间 6-10 分钟）`);
 say(`- 最窄的强弱差距：${worstSpread.toFixed(2)}×`);
 say(`- 均匀基准：${pct(uniform)}；判定阈值：低于 2% 为死亡卡，高于 12% 为主导卡`);
 say('- 判定按各玩家模型独立计算。风格专精卡（双暴卡、纯生存卡）在另一种模型下低选率属正常现象，不是设计缺陷；只有**在所有模型下**都低于 2% 才是真正的废卡');
@@ -228,3 +300,12 @@ mkdirSync(dirname(REPORT_PATH), { recursive: true });
 writeFileSync(REPORT_PATH, lines.join('\n') + '\n', 'utf-8');
 console.log('');
 console.log('报告已写入：' + REPORT_PATH);
+
+if (!lengthOk) {
+  console.error('');
+  console.error(
+    `✗ 单局时长 ${realMinutes.toFixed(2)} 分钟，超出设计目标 ${RUN_MINUTES_TARGET.join('-')} 分钟。`,
+  );
+  console.error('  这是产品级约束，请调整 design/numbers/cards.json 的 base.waves 或 enemy 段。');
+  process.exitCode = 1;
+}
